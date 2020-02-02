@@ -13,6 +13,11 @@ class ResourceView(MethodView):
         raise NotImplementedError()
 
     def dispatch_request(self, *args, **kwargs):
+        if request.method in ('POST', 'PUT'):
+            data = request.get_json()
+            if data is None:
+                abort(400)
+
         id = kwargs.pop('id', None)
         if id is not None:
             resource = self.get_resource_by_id(id)
@@ -41,12 +46,13 @@ class DocumentView(ResourceView):
             return jsonify(list(self.__class__.collection.find(request.args)))
 
     def post(self):
-        doc = request.get_json()
-        self.__class__.collection.insert_one(doc)
-        return jsonify(doc), 201
+        data = request.get_json()
+        self.__class__.collection.insert_one(data)
+        return jsonify(data), 201
 
     def put(self, doc):
-        doc.update(**request.get_json())
+        data = request.get_json()
+        doc.update(**data)
         self.__class__.update_one(
             {'_id': doc.get('_id')},
             {'$set': doc}
@@ -62,16 +68,27 @@ class ModelView(ResourceView):
     model = None
 
     def get_resource_by_id(self, id):
-        pass
+        return self.__class__.model.get(id)
 
-    def get(self, id=None):
-        pass
+    def get(self, instance=None):
+        if model:
+            return jsonify(instance.to_dict())
+        else:
+            results = self.__class__.model.objects.find(request.args)
+            return jsonify(results)
 
     def post(self):
-        pass
+        data = request.get_json()
+        instance = self.__class__.model(**data)
+        instance.save()
+        return jsonify(instance.to_dict()), 201
 
-    def put(self, id):
-        pass
+    def put(self, instance):
+        data = request.get_json()
+        instance.update(**data)
+        instance.save()
+        return jsonify(instance.to_dict())
 
-    def delete(self, id):
-        pass
+    def delete(self, instance):
+        instance.delete()
+        return jsonify(instance.to_dict())

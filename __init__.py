@@ -1,2 +1,2 @@
-from .models import Model 
+from .models import MongoModel, RedisModel 
 from .views import ResourceView, DocumentView, ModelView
