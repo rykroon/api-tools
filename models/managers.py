@@ -1,14 +1,6 @@
 from bson.objectid import ObjectId
 
 
-class CollectionDescriptor:
-    def __get__(self, instance, owner):
-        return owner.database[owner.__name__.lower()]
-
-    def __set__(self, instance, value):
-        raise AttributeError
-
-
 class Manager:
     def __get__(self, instance, owner):
         if not hasattr(self, 'owner'):
@@ -19,25 +11,40 @@ class Manager:
         raise AttributeError
 
 
-class MongoObjectManager(Manager):
-    def find(self, **kwargs):
-        cursor = self.owner.collection.find(kwargs)
+class CollectionManager(Manager):
+    def __get__(self, instance, owner):
+        return owner.database[owner.__name__.lower()]
+
+
+class MongoManager(Manager):
+    def find(self, *args, **kwargs):
+        query = kwargs
+        projection = dict.keys(args, True)
+        cursor = self.owner.collection.find(query, projection)
         return [self.owner(**document) for document in cursor]
 
-    def find_one(self, **kwargs):
-        document = self.owner.collection.find_one(kwargs)
+    def find_one(self, *args, **kwargs):
+        query = kwargs
+        projection = dict.keys(args, True)
+
+        pk = query.pop('pk', None)
+        if pk:
+            query['_id'] = ObjectId(pk)
+
+        document = self.owner.collection.find_one(query, projection)
         if document is None:
             return None
         return self.owner(**document)
 
-    def get(self, id):
-        object_id = ObjectId(id)
-        return self.find_one(_id=object_id)
 
+class RedisManager(Manager):
+    def get(self, key):
+        value = self.owner.connection.get(key)
+        if value:
+            return self.owner.from_pickle(value)
+        return None
 
-class RedisObjectManager(Manager):
-    def get(self, id):
-        pass
+    def mget(self, keys):
+        values = self.owner.connection.mget(keys)
+        return [self.owner.from_pickle(value) for value in values]
 
-    def get_many(self, ids):
-        pass

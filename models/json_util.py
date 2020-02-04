@@ -15,3 +15,18 @@ class JSONEncoder(json.JSONEncoder):
 
         return json.JSONEncoder.default(self, obj)
 
+
+class JSONDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook=self.object_hook)
+
+    def object_hook(self, dct):
+        for k, v in dct.items():
+            if type(v) == str:
+                try:
+                    dct[k] = datetime.fromisoformat(v)
+                except ValueError:
+                    pass
+        
+        return dct
+

@@ -1,7 +1,9 @@
 import json
 import pickle
-from .managers import CollectionDescriptor, MongoObjectManager, RedisObjectManager
-from .json import JSONEncoder
+import uuid
+
+from .managers import CollectionDescriptor, MongoManager, RedisManager
+from .json_util import JSONEncoder, JSONDecoder
 
 
 class SerializableObject:
@@ -24,7 +26,7 @@ class SerializableObject:
 
     @classmethod
     def from_json(cls, j):
-        d = json.loads(j)
+        d = json.loads(j, cls=JSONDecoder)
         return cls.from_dict(d)
 
     @classmethod
@@ -38,7 +40,7 @@ class SerializableObject:
 class Model(SerializableObject):
 
     def __eq__(self, value):
-        if not isinstance(value, Model):
+        if type(self) != type(value):
             return False
 
         if self is value:
@@ -47,13 +49,13 @@ class Model(SerializableObject):
         if self.pk is None or value.pk is None:
             return False
 
-        return hash(self) == hash(other)
+        return self.pk == value.pk
 
     def __hash__(self):
         return hash((self.__class__.__name__), str(self.pk))
 
     def __repr__(self):
-        return "{}(pk='{}')".format(self.__class__.__name__, self.pk)
+        return "{}(pk={})".format(self.__class__.__name__, self.pk)
 
     def __str__(self):
         return repr(self)
@@ -78,8 +80,8 @@ class Model(SerializableObject):
 class MongoModel(Model):
 
     database = None
-    collection = CollectionDescriptor()
-    objects = MongoObjectManager()
+    collection = CollectionManager()
+    objects = MongoManager()
 
     @property
     def pk(self):
@@ -103,15 +105,20 @@ class MongoModel(Model):
 
 class RedisModel(Model):
 
-    objects = RedisObjectManager()
+    connection = None
+    objects = RedisManager()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._key = str(uuid.uuid4())
 
     @property
     def pk(self):
-        pass
+        return self._key
 
     def delete(self):
-        pass
+        self.__class__.connection.delete(self.pk)
 
     def save(self):
-        pass
+        self.__class__.connection.set(self.pk, self.to_pickle())
 
