@@ -4,6 +4,7 @@ from bson.errors import InvalidId
 from datetime import datetime, date, time, timedelta
 from decimal import Decimal
 import json 
+from strings import hexdigits
 from uuid import UUID
 
 
@@ -28,35 +29,29 @@ class JSONDecoder(json.JSONDecoder):
                 obj[k] = self.parse_str(v)
         return obj
 
-    def parse_float(self, float_str):
-        return Decimal(float_str)
+    def parse_float(self, f):
+        return Decimal(f)
 
-    def parse_str(self, str_):
-        if len(str_.replace('-','')) == 32:
-            try:
-                return UUID(str_)
-            except:
-                pass
+    def parse_str(self, s):
+        try:
+            temp_string = s.replace('-','')
+            if len(temp_string) == 32:
+                if all(c in hexdigits for c in temp_string)
+                    return UUID(s)
 
-        if str_.count('T') == 1:
-            try:
-                return datetime.fromisoformat(str_)
-            except ValueError:
-                pass
+            if s.count('-') == 2:
+                if s.count('T') == 1:
+                    return datetime.fromisoformat(s)
+                elif s.count('T') == 0:
+                    return date.fromisoformat(s)
 
-        if str_.count('-') == 2:
-            try:
-                return date.fromisoformat(str_)
-            except ValueError:
-                pass
+            if s.count(':') == 2:
+                return time.fromisoformat(s)
 
-        if str_count(':') == 2:
-            try:
-                return time.fromisoformat(str_)
-            except ValueError:
-                pass 
+        except ValueError:
+            pass
 
-        return str_
+        return s
 
 
 class MongoJSONEncoder(JSONEncoder):
@@ -67,15 +62,16 @@ class MongoJSONEncoder(JSONEncoder):
 
 
 class MongoJSONDecoder(JSONDecoder):
+    def parse_float(self, f):
+        return Decimal128(f)
 
-    def parse_float(self, float_str):
-        return Decimal128(float_str)
-
-    def parse_str(self, str_):
-        if len(str_) == 24:
-            try:
-                return ObjectId(str_)
-            except InvalidId:
-                pass 
-        return super().parse_str(str_)
+    def parse_str(self, s):
+        temp_string = s.replace('-','')
+        if len(temp_string) == 24:
+            if all(c in hexdigits for c in temp_string):
+                try:
+                    return ObjectId(s)
+                except InvalidId:
+                    pass 
+        return super().parse_str(s)
 
