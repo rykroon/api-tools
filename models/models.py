@@ -55,7 +55,9 @@ class Model(SerializableObject):
         return self.pk == value.pk
 
     def __hash__(self):
-        return hash((self.__class__.__name__, str(self.pk)))
+        if not self.pk:
+            raise TypeError
+        return hash(self.pk)
 
     def __repr__(self):
         return "{}(pk={})".format(self.__class__.__name__, self.pk)
@@ -123,8 +125,8 @@ class RedisModel(Model):
         return str(self._key)
 
     def delete(self):
-        self.__class__.connection.hdel(self.__class__.__name__, self.pk)
+        self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
 
     def save(self):
-        self.__class__.connection.hset(self.__class__.__name__, self.pk, self.to_pickle())
+        self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
 
