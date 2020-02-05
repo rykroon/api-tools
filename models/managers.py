@@ -48,12 +48,12 @@ class MongoManager(Manager):
 
 class RedisManager(Manager):
     def get(self, key):
-        value = self.owner.connection.get(key)
+        value = self.owner.connection.hget(self.owner.__name__, key)
         if value:
             return self.owner.from_pickle(value)
         return None
 
     def mget(self, keys):
-        values = self.owner.connection.mget(keys)
+        values = self.owner.connection.hmget(self.owner.__name__, keys)
         return [self.owner.from_pickle(value) for value in values]
 

@@ -3,10 +3,13 @@ import pickle
 import uuid
 
 from .managers import CollectionManager, MongoManager, RedisManager
-from .json_util import JSONEncoder, JSONDecoder
+from .json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
 
 
 class SerializableObject:
+
+    json_encoder = JSONEncoder
+    json_decoder = JSONDecoder
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -15,7 +18,7 @@ class SerializableObject:
         return vars(self)
 
     def to_json(self):
-        return json.dumps(self.to_dict(), cls=JSONEncoder)
+        return json.dumps(self.to_dict(), cls=self.__class__.json_encoder)
 
     def to_pickle(self):
         return pickle.dumps(self)
@@ -26,7 +29,7 @@ class SerializableObject:
 
     @classmethod
     def from_json(cls, j):
-        d = json.loads(j, cls=JSONDecoder)
+        d = json.loads(j, cls=cls.json_decoder)
         return cls.from_dict(d)
 
     @classmethod
@@ -83,6 +86,9 @@ class MongoModel(Model):
     collection = CollectionManager()
     objects = MongoManager()
 
+    json_encoder = MongoJSONEncoder
+    json_decoder = MongoJSONDecoder
+
     @property
     def pk(self):
         try:
@@ -110,15 +116,15 @@ class RedisModel(Model):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._key = str(uuid.uuid4())
+        self._key = uuid.uuid4()
 
     @property
     def pk(self):
-        return self._key
+        return str(self._key)
 
     def delete(self):
-        self.__class__.connection.delete(self.pk)
+        self.__class__.connection.hdel(self.__class__.__name__, self.pk)
 
     def save(self):
-        self.__class__.connection.set(self.pk, self.to_pickle())
+        self.__class__.connection.hset(self.__class__.__name__, self.pk, self.to_pickle())
 
