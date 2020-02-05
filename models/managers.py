@@ -10,6 +10,9 @@ class Manager:
     def __set__(self, instance, value):
         raise AttributeError
 
+    def create(self, **kwargs):
+        return self.owner(**kwargs)
+
 
 class CollectionManager(Manager):
     def __get__(self, instance, owner):
@@ -19,17 +22,23 @@ class CollectionManager(Manager):
 class MongoManager(Manager):
     def find(self, *args, **kwargs):
         query = kwargs
-        projection = dict.keys(args, True)
+        projection = None
+        if args:
+            projection = dict.fromkeys(args, True)
         cursor = self.owner.collection.find(query, projection)
         return [self.owner(**document) for document in cursor]
 
     def find_one(self, *args, **kwargs):
         query = kwargs
-        projection = dict.keys(args, True)
+        projection = None
+        if args:
+            projection = dict.fromkeys(args, True)
 
         pk = query.pop('pk', None)
         if pk:
-            query['_id'] = ObjectId(pk)
+            if type(pk) != ObjectId:
+                pk = ObjectId(pk)
+            query['_id'] = pk
 
         document = self.owner.collection.find_one(query, projection)
         if document is None:

@@ -2,7 +2,7 @@ import json
 import pickle
 import uuid
 
-from .managers import CollectionDescriptor, MongoManager, RedisManager
+from .managers import CollectionManager, MongoManager, RedisManager
 from .json_util import JSONEncoder, JSONDecoder
 
 
@@ -52,7 +52,7 @@ class Model(SerializableObject):
         return self.pk == value.pk
 
     def __hash__(self):
-        return hash((self.__class__.__name__), str(self.pk))
+        return hash((self.__class__.__name__, str(self.pk)))
 
     def __repr__(self):
         return "{}(pk={})".format(self.__class__.__name__, self.pk)

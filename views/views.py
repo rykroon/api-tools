@@ -10,11 +10,11 @@ class ResourceView(MethodView):
         """
             @returns: The resource associated with the id, else None
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def dispatch_request(self, *args, **kwargs):
         if request.method in ('POST', 'PUT'):
-            data = request.get_json()
+            data = request.get_json() #use request.get_data(as_text=True), then do json.loads()
             if data is None:
                 abort(400)
 
@@ -67,25 +67,29 @@ class DocumentView(ResourceView):
 class ModelView(ResourceView):
     model = None
 
+    @property
+    def _model(self):
+        self.__class__.model
+
     def get_resource_by_id(self, id):
-        return self.__class__.model.get(id)
+        return self._model.get(id)
 
     def get(self, instance=None):
-        if model:
+        if instance:
             return jsonify(instance.to_dict())
         else:
-            results = self.__class__.model.objects.find(request.args)
+            results = self._model.objects.find(request.args)
             return jsonify(results)
 
     def post(self):
         data = request.get_json()
-        instance = self.__class__.model(**data)
+        instance = self._model(**data)
         instance.save()
         return jsonify(instance.to_dict()), 201
 
     def put(self, instance):
         data = request.get_json()
-        instance.update(**data)
+        instance.update(data)
         instance.save()
         return jsonify(instance.to_dict())
 
