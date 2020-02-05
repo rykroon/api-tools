@@ -41,19 +41,19 @@ class MongoManager(Manager):
             query['_id'] = pk
 
         document = self.owner.collection.find_one(query, projection)
-        if document is None:
-            return None
-        return self.owner(**document)
+        if document:
+            return self.owner(**document)
+        return None
 
 
 class RedisManager(Manager):
     def get(self, key):
-        value = self.owner.connection.hget(self.owner.__name__, key)
+        value = self.owner.connection.hget(self.owner.__name__.lower(), key)
         if value:
             return self.owner.from_pickle(value)
         return None
 
     def mget(self, keys):
-        values = self.owner.connection.hmget(self.owner.__name__, keys)
+        values = self.owner.connection.hmget(self.owner.__name__.lower(), keys)
         return [self.owner.from_pickle(value) for value in values]
 
