@@ -69,13 +69,7 @@ class Model(SerializableObject):
     def pk(self):
         raise NotImplementedError
 
-    def clean(self):
-        raise NotImplementedError
-
     def delete(self):
-        raise NotImplementedError
-
-    def refresh(self):
         raise NotImplementedError
 
     def save(self):
@@ -124,9 +118,15 @@ class RedisModel(Model):
     def pk(self):
         return str(self._key)
 
-    def delete(self):
-        self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
+    def delete(self, hash_=True):
+        if hash_:
+            self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
+        else:
+            self.__class__.connection.delete(self.pk)
 
-    def save(self):
-        self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
+    def save(self, hash_=True):
+        if hash_:
+            self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
+        else:
+            self.__class__.connection.set(self.pk, self.to_pickle())
 
