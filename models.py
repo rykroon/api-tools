@@ -3,8 +3,8 @@ import orjson
 import pickle
 import uuid
 
-from .managers import CollectionManager, MongoManager, RedisManager
-from .json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
+from managers import CollectionManager, MongoManager, RedisManager
+from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
 
 
 class SerializableObject:
@@ -45,28 +45,28 @@ class SerializableObject:
 
 class Model(SerializableObject):
 
-    def __eq__(self, value):
-        if type(self) != type(value):
+    def __eq__(self, other):
+        if not isinstance(other, Model):
+            return NotImplemented
+
+        if type(self) != type(other):
             return False
 
-        if self is value:
-            return True
+        if self.pk is None:
+            return self is other
 
-        if self.pk is None or value.pk is None:
-            return False
-
-        return self.pk == value.pk
+        return self.pk == other.pk
 
     def __hash__(self):
-        if not self.pk:
-            raise TypeError
+        if self.pk is None:
+            raise TypeError("Model instances without a primary key value are unhashable")
         return hash(self.pk)
 
     def __repr__(self):
-        return "{}(pk={})".format(self.__class__.__name__, self.pk)
+        return "<{}: {}>".format(self.__class__.__name__, self)
 
     def __str__(self):
-        return repr(self)
+        return "{} object ({})".format(self.__class__.__name__, self.pk)
 
     @property
     def pk(self):
@@ -85,8 +85,8 @@ class MongoModel(Model):
     collection = CollectionManager()
     objects = MongoManager()
 
-    json_encoder = MongoJSONEncoder
-    json_decoder = MongoJSONDecoder
+    #json_encoder = MongoJSONEncoder
+    #json_decoder = MongoJSONDecoder
 
     @property
     def pk(self):
