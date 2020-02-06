@@ -1,7 +1,10 @@
 from bson.objectid import ObjectId
 from flask import abort, jsonify, request
 from flask.views import MethodView
+import orjson
 from pymongo.errors import InvalidId
+
+from .responses import JsonResponse, ModelResponse
 
 
 class ResourceView(MethodView):
@@ -13,11 +16,6 @@ class ResourceView(MethodView):
         raise NotImplementedError
 
     def dispatch_request(self, *args, **kwargs):
-        if request.method in ('POST', 'PUT'):
-            data = request.get_json() #use request.get_data(as_text=True), then do json.loads()
-            if data is None:
-                abort(400)
-
         id = kwargs.pop('id', None)
         if id is not None:
             resource = self.get_resource_by_id(id)
@@ -39,60 +37,57 @@ class DocumentView(ResourceView):
 
         return self.__class__.collection.find_one({'_id': object_id})
         
-    def get(self, doc=None):
-        if doc:
-            return jsonify(doc)
+    def get(self, document=None):
+        if document:
+            return JsonResponse(document)
         else:
-            return jsonify(list(self.__class__.collection.find(request.args)))
+            documents = list(self.__class__.collection.find(request.args))
+            return JsonResponse(documents)
 
     def post(self):
-        data = request.get_json()
+        data = orjson.loads(request.get_data())
         self.__class__.collection.insert_one(data)
-        return jsonify(data), 201
+        return JsonResponse(data, status=201)
 
-    def put(self, doc):
-        data = request.get_json()
-        doc.update(**data)
+    def put(self, document):
+        data = orjson.loads(request.get_data())
+        document.update(**data)
         self.__class__.update_one(
-            {'_id': doc.get('_id')},
-            {'$set': doc}
+            {'_id': document.get('_id')},
+            {'$set': document}
         )
-        return jsonify(doc)
+        return JsonResponse(document)
 
-    def delete(self, doc):
-        self.__class__.collection.delete_one({'_id': doc.get('_id')})
-        return jsonify(doc)
+    def delete(self, document):
+        self.__class__.collection.delete_one({'_id': document.get('_id')})
+        return JsonResponse(document)
 
 
 class ModelView(ResourceView):
     model = None
 
-    @property
-    def _model(self):
-        self.__class__.model
-
     def get_resource_by_id(self, id):
-        return self._model.get(id)
+        return self.__class__.model.get(id) #???
 
     def get(self, instance=None):
         if instance:
-            return jsonify(instance.to_dict())
+            return ModelResponse(instance)
         else:
-            results = self._model.objects.find(request.args)
-            return jsonify(results)
+            results = self.__class__.model.objects.find(request.args)
+            return JsonResponse(results)
 
     def post(self):
-        data = request.get_json()
-        instance = self._model(**data)
+        data = orjson.loads(request.get_data())
+        instance = self.__class__.model(**data)
         instance.save()
-        return jsonify(instance.to_dict()), 201
+        return ModelResponse(instance, status=201)
 
     def put(self, instance):
-        data = request.get_json()
-        instance.update(data)
+        data = orjson.loads(request.get_data())
+        instance.update(data) #??
         instance.save()
-        return jsonify(instance.to_dict())
+        return ModelResponse(instance)
 
     def delete(self, instance):
         instance.delete()
-        return jsonify(instance.to_dict())
+        return ModelResponse(instance)

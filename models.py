@@ -1,4 +1,5 @@
 import json
+import orjson
 import pickle
 import uuid
 
@@ -18,7 +19,8 @@ class SerializableObject:
         return vars(self)
 
     def to_json(self):
-        return json.dumps(self.to_dict(), cls=self.__class__.json_encoder)
+        return orjson.dumps(self.to_dict(), default=str)
+        #return json.dumps(self.to_dict(), cls=self.__class__.json_encoder)
 
     def to_pickle(self):
         return pickle.dumps(self)
@@ -29,7 +31,8 @@ class SerializableObject:
 
     @classmethod
     def from_json(cls, j):
-        d = json.loads(j, cls=cls.json_decoder)
+        d = orjson.loads(j, cls=cls.json_decoder)
+        #d = json.loads(j, cls=cls.json_decoder)
         return cls.from_dict(d)
 
     @classmethod
