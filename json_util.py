@@ -4,9 +4,58 @@ from bson.errors import InvalidId
 from datetime import datetime, date, time, timedelta
 from decimal import Decimal
 import json 
-from strings import hexdigits
+from string import hexdigits
 from uuid import UUID
 
+
+# ??
+class DictConverter:
+    def __call__(self, d):
+        return self.parse_dict(d)
+
+    def parse_dict(self, d):
+        for k, v in d.items():
+            t = type(v)
+
+            if t == dict:
+                d[k] = self.parse_dict(v)
+            elif t == list:
+                d[k] = self.parse_list(v)
+            elif t == bool:
+                d[k] = self.parse_bool(v)
+            elif t == float:
+                d[k] = self.parse_float(v)
+            elif t == int: 
+                d[k] = self.parse_int(v)
+            elif t == str:
+                d[k] = self.parse_str(v)
+
+        return d
+
+    def parse_list(self, l):
+        for e in l:
+            pass 
+        return l
+
+    def parse_bool(self, b):
+        return b
+
+    def parse_float(self, f):
+        return Decimal(str(f)) 
+
+    def parse_int(self, i):
+        return i 
+
+    def parse_str(self, s):
+        #convert datetime, date, time, uuid,
+        if self.is_hex(s):
+            return UUID(s)
+        return s
+
+    def _is_hex(s):
+        s = s.replace('-','')
+        return all([c in hexdigits for c in s])
+    
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -36,7 +85,7 @@ class JSONDecoder(json.JSONDecoder):
         try:
             temp_string = s.replace('-','')
             if len(temp_string) == 32:
-                if all(c in hexdigits for c in temp_string)
+                if all(c in hexdigits for c in temp_string):
                     return UUID(s)
 
             if s.count('-') == 2:
