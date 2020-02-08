@@ -3,6 +3,8 @@ from flask import abort, jsonify, request
 from flask.views import MethodView
 from pymongo.errors import InvalidId
 
+from aux import jsonify_model
+
 
 class ResourceView(MethodView):
 
@@ -64,11 +66,11 @@ class ModelView(ResourceView):
     model = None
 
     def get_resource_by_id(self, id):
-        return self.__class__.model.objects.get(id) 
+        return self.__class__.model.objects.get_by_id(id) 
 
     def get(self, instance=None):
         if instance:
-            return jsonify(instance.to_dict())
+            return jsonify_model(instance)
         else:
             results = self.__class__.model.objects.find(request.args)
             return jsonify(results)
@@ -77,14 +79,14 @@ class ModelView(ResourceView):
         data = request.get_json()
         instance = self.__class__.model(**data)
         instance.save()
-        return jsonify(instance.to_dict(), status=201)
+        return jsonify_model(instance), status=201
 
     def put(self, instance):
         data = request.get_json()
         instance.update(data)
         instance.save()
-        return jsonify(instance.to_dict())
+        return jsonify_model(instance)
 
     def delete(self, instance):
         instance.delete()
-        return jsonify(instance.to_dict())
+        return jsonify_model(instance)
