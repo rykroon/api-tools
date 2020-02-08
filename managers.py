@@ -13,6 +13,9 @@ class Manager:
     def create(self, **kwargs):
         return self.owner(**kwargs)
 
+    def get(self, id):
+        raise NotImplementedError
+
 
 class CollectionManager(Manager):
     def __get__(self, instance, owner):
@@ -34,28 +37,19 @@ class MongoManager(Manager):
         if args:
             projection = dict.fromkeys(args, True)
 
-        pk = query.pop('pk', None)
-        if pk:
-            if type(pk) != ObjectId:
-                pk = ObjectId(pk)
-            query['_id'] = pk
-
         document = self.owner.collection.find_one(query, projection)
         if document:
             return self.owner(**document)
         return None
 
+    def get(self, id):
+        return self.find_one(_id=id)
+
 
 class RedisManager(Manager):
-    def get(self, key):
-        value = self.owner.connection.get(key)
-        if value:
-            return self.owner.from_pickle(value)
-        return None
 
-    def mget(self, keys):
-        values = self.owner.connection.mget(keys)
-        return [self.owner.from_pickle(value) for value in values]
+    def get(self, id):
+        return self.hget(id)
 
     def hget(self, key):
         value = self.owner.connection.hget(self.owner.__name__.lower(), key)
