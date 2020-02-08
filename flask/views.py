@@ -1,10 +1,7 @@
 from bson.objectid import ObjectId
 from flask import abort, jsonify, request
 from flask.views import MethodView
-import orjson
 from pymongo.errors import InvalidId
-
-from .responses import JsonResponse, ModelResponse
 
 
 class ResourceView(MethodView):
@@ -39,55 +36,55 @@ class DocumentView(ResourceView):
         
     def get(self, document=None):
         if document:
-            return JsonResponse(document)
+            return jsonify(document)
         else:
             documents = list(self.__class__.collection.find(request.args))
-            return JsonResponse(documents)
+            return jsonify(documents)
 
     def post(self):
-        data = orjson.loads(request.get_data())
+        data = request.get_json()
         self.__class__.collection.insert_one(data)
-        return JsonResponse(data, status=201)
+        return jsonify(data, status=201)
 
     def put(self, document):
-        data = orjson.loads(request.get_data())
-        document.update(**data)
+        data = request.get_json()
+        document.update(data)
         self.__class__.update_one(
             {'_id': document.get('_id')},
             {'$set': document}
         )
-        return JsonResponse(document)
+        return jsonify(document)
 
     def delete(self, document):
         self.__class__.collection.delete_one({'_id': document.get('_id')})
-        return JsonResponse(document)
+        return jsonify(document)
 
 
 class ModelView(ResourceView):
     model = None
 
     def get_resource_by_id(self, id):
-        return self.__class__.model.get(id) #???
+        return self.__class__.model.objects.get(id) 
 
     def get(self, instance=None):
         if instance:
-            return ModelResponse(instance)
+            return jsonify(instance.to_dict())
         else:
             results = self.__class__.model.objects.find(request.args)
-            return JsonResponse(results)
+            return jsonify(results)
 
     def post(self):
-        data = orjson.loads(request.get_data())
+        data = request.get_json()
         instance = self.__class__.model(**data)
         instance.save()
-        return ModelResponse(instance, status=201)
+        return jsonify(instance.to_dict(), status=201)
 
     def put(self, instance):
-        data = orjson.loads(request.get_data())
-        instance.update(data) #??
+        data = request.get_json()
+        instance.update(data)
         instance.save()
-        return ModelResponse(instance)
+        return jsonify(instance.to_dict())
 
     def delete(self, instance):
         instance.delete()
-        return ModelResponse(instance)
+        return jsonify(instance.to_dict())

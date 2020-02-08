@@ -1,16 +1,11 @@
 import json
-import orjson
 import pickle
 import uuid
 
 from managers import CollectionManager, MongoManager, RedisManager
-from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
-
+from json_util import JSONEncoder, mongo_object_hook
 
 class SerializableObject:
-
-    json_encoder = JSONEncoder
-    json_decoder = JSONDecoder
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -18,9 +13,8 @@ class SerializableObject:
     def to_dict(self):
         return vars(self)
 
-    def to_json(self):
-        return orjson.dumps(self.to_dict(), default=str)
-        #return json.dumps(self.to_dict(), cls=self.__class__.json_encoder)
+    def to_json(self, cls=JSONEncoder, **kwargs):
+        return json.dumps(self.to_dict(), cls=cls, **kwargs)
 
     def to_pickle(self):
         return pickle.dumps(self)
@@ -30,9 +24,8 @@ class SerializableObject:
         return cls(**d)
 
     @classmethod
-    def from_json(cls, j):
-        d = orjson.loads(j, cls=cls.json_decoder)
-        #d = json.loads(j, cls=cls.json_decoder)
+    def from_json(cls, j, **kwargs):
+        d = json.loads(j, **kwargs)
         return cls.from_dict(d)
 
     @classmethod
@@ -78,15 +71,15 @@ class Model(SerializableObject):
     def save(self):
         raise NotImplementedError
 
+    def update(self, data):
+        self.__dict__.update(data)
+
 
 class MongoModel(Model):
 
     database = None
     collection = CollectionManager()
     objects = MongoManager()
-
-    #json_encoder = MongoJSONEncoder
-    #json_decoder = MongoJSONDecoder
 
     @property
     def pk(self):
@@ -107,6 +100,11 @@ class MongoModel(Model):
                 {'$set': self.to_dict()}
             )
 
+    @classmethod
+    def from_json(cls, j, object_hook=mongo_object_hook, **kwargs):
+        d = json.loads(j, object_hook=object_hook, **kwargs)
+        return cls.from_dict(d)
+
 
 class RedisModel(Model):
 
@@ -121,15 +119,9 @@ class RedisModel(Model):
     def pk(self):
         return str(self._key)
 
-    def delete(self, hash_=True):
-        if hash_:
-            self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
-        else:
-            self.__class__.connection.delete(self.pk)
+    def delete(self):
+        self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
 
-    def save(self, hash_=True):
-        if hash_:
-            self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
-        else:
-            self.__class__.connection.set(self.pk, self.to_pickle())
+    def save(self):
+        self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
 
