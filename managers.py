@@ -1,25 +1,31 @@
 from bson.objectid import ObjectId
 
 
-class Manager:
-    def __get__(self, instance, owner):
-        if not hasattr(self, 'owner'):
-            self.owner = owner
+class ManagerDescriptor:
+    def __get__(self, instance, model):
+        if instance is not None:
+            raise AttributeError("Manager isn't accessible via {} instances".format(model.__name__))
+
+        if not hasattr(self, 'model'):
+            self.model = model
         return self
 
-    def __set__(self, instance, value):
-        raise AttributeError
 
+class CollectionDescriptor:
+    def __get__(self, instance, model):
+        if instance is not None:
+            raise AttributeError("Manager isn't accessible via {} instances".format(model.__name__))
+        return model.database[model.__name__.lower()]
+
+
+class Manager(ManagerDescriptor):
     def create(self, **kwargs):
-        return self.owner(**kwargs)
+        obj = self.model(**kwargs)
+        obj.save()
+        return obj
 
-    def get(self, id):
+    def get_by_id(self, id):
         raise NotImplementedError
-
-
-class CollectionManager(Manager):
-    def __get__(self, instance, owner):
-        return owner.database[owner.__name__.lower()]
 
 
 class MongoManager(Manager):
@@ -28,8 +34,8 @@ class MongoManager(Manager):
         projection = None
         if args:
             projection = dict.fromkeys(args, True)
-        cursor = self.owner.collection.find(query, projection)
-        return [self.owner(**document) for document in cursor]
+        cursor = self.model.collection.find(query, projection)
+        return [self.model(**document) for document in cursor]
 
     def find_one(self, *args, **kwargs):
         query = kwargs
@@ -37,27 +43,36 @@ class MongoManager(Manager):
         if args:
             projection = dict.fromkeys(args, True)
 
-        document = self.owner.collection.find_one(query, projection)
+        document = self.model.collection.find_one(query, projection)
         if document:
-            return self.owner(**document)
+            return self.model(**document)
         return None
 
-    def get(self, id):
-        return self.find_one(_id=id)
+    def get_by_id(self, id):
+        try:
+            id = ObjectId(id)
+        except InvalidId:
+            pass
+
+        instance = self.find_one(_id=id)
+        if instance is None:
+            raise self.model.DoesNotExist
 
 
 class RedisManager(Manager):
 
-    def get(self, id):
-        return self.hget(id)
+    def get_by_id(self, id):
+        obj = self.hget(id)
+        if object is None:
+            raise self.__class__.DoesNotExist
 
     def hget(self, key):
-        value = self.owner.connection.hget(self.owner.__name__.lower(), key)
+        value = self.model.connection.hget(self.model.__name__.lower(), key)
         if value:
-            return self.owner.from_pickle(value)
+            return self.model.from_pickle(value)
         return None
 
     def hmget(self, keys):
-        values = self.owner.connection.hmget(self.owner.__name__.lower(), keys)
-        return [self.owner.from_pickle(value) for value in values]
+        values = self.model.connection.hmget(self.model.__name__.lower(), keys)
+        return [self.model.from_pickle(value) for value in values]
 
