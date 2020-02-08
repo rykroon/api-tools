@@ -32,6 +32,26 @@ def to_decimal128(s):
 
 
 # might want a default object_hook for converting ISO dates into datetime objects
+def iso_object_hook(obj):
+    for k, v in obj.items():
+        if type(v) == dict:
+            return obj[k] = iso_object_hook(v)
+
+        if type(v) == list:
+            pass
+            
+        if type(v) == str:
+            if v.count('-') == 2:
+                try:
+                    obj[k] = datetime.fromisoformat(v)
+                except ValueError:
+                    pass
+
+            elif v.count(':') == 2:
+                try:
+                    obj[k] = time.fromisoformat(v)
+                except ValueError:
+                    pass
 
 
 def mongo_object_hook(obj):
