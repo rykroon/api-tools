@@ -2,10 +2,13 @@ import json
 import pickle
 import uuid
 
-from managers import CollectionManager, MongoManager, RedisManager
-from json_util import JSONEncoder, mongo_object_hook
+from managers import CollectionDescriptor, MongoManager, RedisManager
+from json_util import JSONEncoder, MongoJSONEncoder, JSONDecoder
 
 class SerializableObject:
+
+    json_encoder = JSONEncoder
+    json_decoder - JSONDecoder
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -13,8 +16,9 @@ class SerializableObject:
     def to_dict(self):
         return vars(self)
 
-    def to_json(self, cls=JSONEncoder, **kwargs):
-        return json.dumps(self.to_dict(), cls=cls, **kwargs)
+    def to_json(self, **kwargs):
+        encoder = kwargs.pop('cls', self.__class__.json_encoder)
+        return json.dumps(self.to_dict(), cls=encoder, **kwargs)
 
     def to_pickle(self):
         return pickle.dumps(self)
@@ -37,6 +41,9 @@ class SerializableObject:
 
 
 class Model(SerializableObject):
+
+    class DoesNotExist(Exception):
+        pass
 
     def __eq__(self, other):
         if not isinstance(other, Model):
@@ -78,8 +85,10 @@ class Model(SerializableObject):
 class MongoModel(Model):
 
     database = None
-    collection = CollectionManager()
+    collection = CollectionDescriptor()
     objects = MongoManager()
+
+    json_encoder = MongoJSONEncoder
 
     @property
     def pk(self):
@@ -99,11 +108,6 @@ class MongoModel(Model):
                 {'_id': self.pk}, 
                 {'$set': self.to_dict()}
             )
-
-    @classmethod
-    def from_json(cls, j, object_hook=mongo_object_hook, **kwargs):
-        d = json.loads(j, object_hook=object_hook, **kwargs)
-        return cls.from_dict(d)
 
 
 class RedisModel(Model):

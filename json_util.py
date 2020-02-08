@@ -4,23 +4,31 @@ from bson.errors import InvalidId
 from datetime import datetime, date, time
 from decimal import Decimal
 import json 
-    
+from uuid import UUID
+
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if type(o) in (datetime, date, time):
+        if isinstance(o, (datetime, date, time)) :
             return o.isoformat()
-        elif type(o) in (Decimal, Decimal128):
+        if isinstance(o, Decimal):
+            return float(o)
+        if isinstance(o, UUID):
+            return str(o)
+        return super().default(o)
+
+
+class MongoJSONEncoder(JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal128):
             return float(str(o))
-        return str(o)
+        if isinstance(o, ObjectId):
+            return str(o)
+        return super().default(o)
 
 
-def default(o):
-    if type(o) in (datetime, date, time):
-        return o.isoformat()
-    elif type(o) in (Decimal, Decimal128):
-        return float(str(o))
-    return str(o)
+class JSONDecoder(json.JSONDecoder):
+    pass
 
 
 def to_decimal(s):
@@ -31,27 +39,21 @@ def to_decimal128(s):
     return Decimal128(s)
 
 
-# might want a default object_hook for converting ISO dates into datetime objects
 def iso_object_hook(obj):
     for k, v in obj.items():
         if type(v) == dict:
             return obj[k] = iso_object_hook(v)
-
         if type(v) == list:
             pass
-            
         if type(v) == str:
-            if v.count('-') == 2:
-                try:
+            try:
+                if v.count('-') == 2:
                     obj[k] = datetime.fromisoformat(v)
-                except ValueError:
-                    pass
-
-            elif v.count(':') == 2:
-                try:
+                elif v.count(':') == 2:
                     obj[k] = time.fromisoformat(v)
-                except ValueError:
-                    pass
+            except ValueError:
+                pass
+    return obj
 
 
 def mongo_object_hook(obj):
