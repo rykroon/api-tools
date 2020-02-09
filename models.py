@@ -8,7 +8,7 @@ from json_util import JSONEncoder, MongoJSONEncoder, JSONDecoder
 class SerializableObject:
 
     json_encoder = JSONEncoder
-    json_decoder - JSONDecoder
+    json_decoder = JSONDecoder
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
