@@ -1,9 +1,12 @@
+from datetime import datetime, date, time
 import json
 import pickle
+from types import BuiltinFunctionType, FunctionType
 import uuid
 
 from managers import CollectionDescriptor, MongoManager, RedisManager
 from json_util import JSONEncoder, MongoJSONEncoder, JSONDecoder
+from exceptions import ObjectDoesNotExist, ValidationError
 
 class SerializableObject:
 
@@ -11,6 +14,18 @@ class SerializableObject:
     json_decoder = JSONDecoder
 
     def __init__(self, **kwargs):
+        if hasattr(self, '__annotations__'):
+            for attr in self.__annotations__.keys():
+                try:
+                    value = getattr(self.__class__, attr)
+                except AttributeError:
+                    value = None 
+                
+                if type(value) in (BuiltinFunctionType, FunctionType):
+                    value = value()
+                
+                setattr(self, attr, value)
+
         self.__dict__.update(kwargs)
 
     def to_dict(self):
@@ -42,7 +57,7 @@ class SerializableObject:
 
 class Model(SerializableObject):
 
-    class DoesNotExist(Exception):
+    class DoesNotExist(ObjectDoesNotExist):
         pass
 
     def __eq__(self, other):
@@ -77,6 +92,39 @@ class Model(SerializableObject):
 
     def save(self):
         raise NotImplementedError
+
+    def full_clean(self, exclude=None):
+        """
+            calls type_check_fields() and clean()
+            raises a ValidationError if there are errors 
+        """
+        self.clean()
+        self.type_check_fields(exclude=exclude)
+
+    def clean(self):
+        pass
+
+    def type_check_fields(self, exclude=None):
+        if exclude is None:
+            exclude = []
+
+        errors = {} 
+        if hasattr(self, '__annotations__'):
+            for attr, typ in self.__annotations__.items():
+                if attr in exclude:
+                    continue
+
+                value = getattr(self, attr)
+                if value is None:
+                    #maybe add logic so that if an attribute has a default value
+                    # then the value cannot be None??
+                    continue
+
+                if type(value) != typ:
+                    errors[attr] = "field '{}' must be of type '{}'".format(attr, typ)
+
+        if errors:
+            raise TypeError(errors)
 
     def update(self, data):
         self.__dict__.update(data)
