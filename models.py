@@ -5,27 +5,31 @@ from types import BuiltinFunctionType, FunctionType
 import uuid
 
 from managers import CollectionDescriptor, MongoManager, RedisManager
-from json_util import JSONEncoder, MongoJSONEncoder, JSONDecoder
-from exceptions import ObjectDoesNotExist, ValidationError
+from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
+from exceptions import ObjectDoesNotExist
 
 class SerializableObject:
 
     json_encoder = JSONEncoder
     json_decoder = JSONDecoder
 
-    def __init__(self, **kwargs):
-        if hasattr(self, '__annotations__'):
-            for attr in self.__annotations__.keys():
+    def __new__(cls, *args, **kwargs):
+        obj = super().__new__(cls)
+
+        if hasattr(cls, '__annotations__'):
+            for attr, typ in cls.__annotations__.items():
                 try:
-                    value = getattr(self.__class__, attr)
+                    value = getattr(cls, attr)
                 except AttributeError:
                     value = None 
-                
+
                 if type(value) in (BuiltinFunctionType, FunctionType):
                     value = value()
-                
-                setattr(self, attr, value)
 
+                setattr(obj,attr, value)
+        return obj
+
+    def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
     def to_dict(self):
@@ -44,7 +48,8 @@ class SerializableObject:
 
     @classmethod
     def from_json(cls, j, **kwargs):
-        d = json.loads(j, **kwargs)
+        decoder = kwargs.pop('cls', cls.json_decoder)
+        d = json.loads(j, cls=decoder, **kwargs)
         return cls.from_dict(d)
 
     @classmethod
@@ -96,7 +101,7 @@ class Model(SerializableObject):
     def full_clean(self, exclude=None):
         """
             calls type_check_fields() and clean()
-            raises a ValidationError if there are errors 
+            raises a TypeError if there are errors 
         """
         self.clean()
         self.type_check_fields(exclude=exclude)
@@ -137,6 +142,7 @@ class MongoModel(Model):
     objects = MongoManager()
 
     json_encoder = MongoJSONEncoder
+    json_decoder = MongoJSONDecoder
 
     @property
     def pk(self):
