@@ -28,7 +28,20 @@ class Manager(ManagerDescriptor):
         raise NotImplementedError
 
 
+"""
+    Ideas !!
+    add a filter function which creates a QuerySet object with a filter
+    additional calls to .filter() get appended to the filter object until
+    find() is called, or maybe all() to stick with Django terminology
+    
+"""
+
+
 class MongoManager(Manager):
+    def delete(self):
+        pass
+
+    #filter, projection
     def find(self, *args, **kwargs):
         query = kwargs
         projection = None
@@ -47,6 +60,9 @@ class MongoManager(Manager):
         if document:
             return self.model(**document)
         return None
+
+    def update(self, **kwargs):
+        pass
 
     def get_by_id(self, id):
         try:

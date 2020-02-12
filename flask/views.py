@@ -46,7 +46,7 @@ class DocumentView(ResourceView):
     def post(self):
         data = request.get_json()
         self.__class__.collection.insert_one(data)
-        return jsonify(data, status=201)
+        return jsonify(data), status=201
 
     def put(self, document):
         data = request.get_json()
@@ -76,8 +76,7 @@ class ModelView(ResourceView):
             return jsonify(results)
 
     def post(self):
-        data = request.get_json()
-        instance = self.__class__.model(**data)
+        instance = self.__class__.model.from_json(request.data)
         instance.save()
         return jsonify_model(instance), status=201
 
