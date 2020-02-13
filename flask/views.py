@@ -1,3 +1,4 @@
+import json 
 from bson.objectid import ObjectId
 from flask import abort, jsonify, request
 from flask.views import MethodView
@@ -65,23 +66,27 @@ class DocumentView(ResourceView):
 class ModelView(ResourceView):
     model = None
 
+    @property
+    def _model(self):
+        return self.__class__.model
+
     def get_resource_by_id(self, id):
-        return self.__class__.model.objects.get_by_id(id) 
+        return self._model.objects.get_by_id(id) 
 
     def get(self, instance=None):
         if instance:
             return jsonify_model(instance)
         else:
-            results = self.__class__.model.objects.find(request.args)
+            results = self._model.get_many(request.args)
             return jsonify(results)
 
     def post(self):
-        instance = self.__class__.model.from_json(request.data)
+        instance = self._model.from_json(request.data)
         instance.save()
         return jsonify_model(instance), status=201
 
     def put(self, instance):
-        data = request.get_json()
+        data = json.loads(request.data, cls=self._model.json_decoder)
         instance.update(data)
         instance.save()
         return jsonify_model(instance)
