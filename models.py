@@ -1,33 +1,15 @@
-from datetime import datetime, date, time
 import json
 import pickle
-from types import BuiltinFunctionType, FunctionType
 import uuid
 
-from managers import CollectionDescriptor, MongoManager, RedisManager
+from descriptors import CollectionDescriptor
 from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
-from exceptions import ObjectDoesNotExist
+
 
 class SerializableObject:
 
     json_encoder = JSONEncoder
     json_decoder = JSONDecoder
-
-    def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls)
-
-        if hasattr(cls, '__annotations__'):
-            for attr, typ in cls.__annotations__.items():
-                try:
-                    value = getattr(cls, attr)
-                except AttributeError:
-                    value = None 
-
-                if type(value) in (BuiltinFunctionType, FunctionType):
-                    value = value()
-
-                setattr(obj,attr, value)
-        return obj
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -62,9 +44,6 @@ class SerializableObject:
 
 class Model(SerializableObject):
 
-    class DoesNotExist(ObjectDoesNotExist):
-        pass
-
     def __eq__(self, other):
         if not isinstance(other, Model):
             return NotImplemented
@@ -98,51 +77,25 @@ class Model(SerializableObject):
     def save(self):
         raise NotImplementedError
 
-    def full_clean(self, exclude=None):
-        """
-            calls type_check_fields() and clean()
-            raises a TypeError if there are errors 
-        """
-        self.clean()
-        self.type_check_fields(exclude=exclude)
-
-    def clean(self):
-        pass
-
-    def type_check_fields(self, exclude=None):
-        if exclude is None:
-            exclude = []
-
-        errors = {} 
-        if hasattr(self, '__annotations__'):
-            for attr, typ in self.__annotations__.items():
-                if attr in exclude:
-                    continue
-
-                value = getattr(self, attr)
-                if value is None:
-                    #maybe add logic so that if an attribute has a default value
-                    # then the value cannot be None??
-                    continue
-
-                if type(value) != typ:
-                    errors[attr] = "field '{}' must be of type '{}'".format(attr, typ)
-
-        if errors:
-            raise TypeError(errors)
-
     def update(self, data):
         self.__dict__.update(data)
+
+    @classmethod
+    def get_by_id(cls, id):
+        raise NotImplementedError
+
+    @classmethod
+    def get_many(cls, **kwargs):
+        raise NotImplementedError
 
 
 class MongoModel(Model):
 
-    database = None
-    collection = CollectionDescriptor()
-    objects = MongoManager()
-
     json_encoder = MongoJSONEncoder
     json_decoder = MongoJSONDecoder
+
+    database = None
+    collection = CollectionDescriptor()
 
     @property
     def pk(self):
@@ -163,11 +116,27 @@ class MongoModel(Model):
                 {'$set': self.to_dict()}
             )
 
+    @classmethod
+    def get_by_id(cls, id):
+        try:
+            object_id = ObjectId(id)
+        except InvalidId:
+            object_id = id
+
+        document = cls.collection.find_one({'_id': object_id})
+        if document is not None:
+            return cls(**document)
+        return None
+
+    @classmethod
+    def get_many(cls, **kwargs):
+        cursor = cls.collection.find(kwargs)
+        return [cls(**document) for document in cursor]
+
 
 class RedisModel(Model):
 
     connection = None
-    objects = RedisManager()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -182,4 +151,15 @@ class RedisModel(Model):
 
     def save(self):
         self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
+
+    @classmethod
+    def get_by_id(cls, id):
+        p = cls.connection.hget(cls.__name__.lower(), id)
+        if p is not None:
+            return cls.from_pickle(p)
+        return None
+
+
+class HybridModel(MongoModel, RedisModel):
+    pass
 
