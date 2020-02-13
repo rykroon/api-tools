@@ -1,12 +1,12 @@
-from copy import copy
+from copy import deepcopy
 
 class Queryset:
 
     def __init__(self, model=None):
         self.model = model
-        self.filter = {}
-        self.projection = {}
-        self.results = None
+        self._filter = {}
+        self._projection = {}
+        self._result_cache = None
         
 
     def __getitem__(self, item):
@@ -21,36 +21,45 @@ class Queryset:
     def __next__(self):
         pass
 
+    def _copy(self):
+        c = deepcopy(self)
+        c._result_cache = None 
+        return c
+
+    def _evaluate(self):
+        if self._result_cache is None:
+            cursor = self.model.collection.find(filter=self._filter, projection=self._projection)
+            self.result_cache = list(cursor)
+
     def all(self):
-        qs = copy(self)
-        cursor = qs.model.collection.find(filter=qs.filter, projection=qs.projection)
-        qs.results = list(cursor)
+        qs = self._copy()
+        qs._evaluate()
         return qs
 
     def count(self):
-        return self.model.collection.count_documents(filter=self.filter)
+        return self.model.collection.count_documents(filter=self._filter)
 
     def defer(self, *fields):
-        qs = copy(self)
+        qs = self._copy()
         d = dict.fromkeys(field, False)
-        qs.projection.update(d)
+        qs._projection.update(d)
         return qs
 
     def delete(self):
-        self.model.collection.delete_many(filter=self.filter)
+        self.model.collection.delete_many(filter=self._filter)
 
     def filter(self, **kwargs):
-        qs = copy(self)
-        qs.filter.update(kwargs)
+        qs = self._copy()
+        qs._filter.update(kwargs)
         return qs
 
     def get(self, **kwargs):
         pass
 
     def only(self, *fields):
-        qs = copy(self)
-        qs.projection = dict.fromkeys(fields, True)
+        qs = self._copy()
+        qs._projection = dict.fromkeys(fields, True)
         return qs
 
     def update(self, **kwargs):
-        return self.model.collection.update_many(filter=self.filter, update=kwargs)
+        return self.model.collection.update_many(filter=self._filter, update=kwargs)
