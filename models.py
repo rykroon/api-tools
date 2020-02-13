@@ -125,18 +125,19 @@ class MongoModel(Model):
 
         document = cls.collection.find_one({'_id': object_id})
         if document is not None:
-            return cls(**document)
+            return cls.from_dict(document)
         return None
 
     @classmethod
     def get_many(cls, **kwargs):
         cursor = cls.collection.find(kwargs)
-        return [cls(**document) for document in cursor]
+        return [cls.from_dict(document) for document in cursor]
 
 
 class RedisModel(Model):
 
     connection = None
+    hash_name = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -144,22 +145,43 @@ class RedisModel(Model):
 
     @property
     def pk(self):
-        return str(self._key)
+        return self._key
+
+    @property
+    def _hash_name(self):
+        return self.__class__.hash_name or self.__class__.__name__.lower()
 
     def delete(self):
-        self.__class__.connection.hdel(self.__class__.__name__.lower(), self.pk)
+        pk = str(self.pk)
+        self.__class__.connection.hdel(self._hash_name, pk)
 
     def save(self):
-        self.__class__.connection.hset(self.__class__.__name__.lower(), self.pk, self.to_pickle())
+        pk = str(self.pk)
+        self.__class__.connection.hset(self._hash_name, pk, self.to_pickle())
 
     @classmethod
     def get_by_id(cls, id):
-        p = cls.connection.hget(cls.__name__.lower(), id)
+        hash_name = cls.hash_name or cls.__name__.lower()
+        p = cls.connection.hget(hash_name, id)
         if p is not None:
             return cls.from_pickle(p)
         return None
 
 
 class HybridModel(MongoModel, RedisModel):
-    pass
+    
+    def delete(self):
+        super().delete()
+        RedisModel.delete(self)
+
+    def save(self):
+        super().save()
+        RedisModel.save(self)
+
+    @classmethod 
+    def get_by_id(cls, id):
+        instance = RedisModel.get_by_id(id)
+        if instance is None:
+            instance = super().get_by_id(id)
+        return instance
 
