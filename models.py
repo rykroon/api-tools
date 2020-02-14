@@ -2,7 +2,7 @@ import json
 import pickle
 import uuid
 
-from descriptors import CollectionDescriptor
+from descriptors import CollectionDescriptor, HashNameDescriptor
 from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
 
 
@@ -13,6 +13,10 @@ class SerializableObject:
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+    @property
+    def _cls(self):
+        return self.__class__
 
     def to_dict(self):
         return vars(self)
@@ -105,13 +109,14 @@ class MongoModel(Model):
             return None
 
     def delete(self):
-        self.__class__.collection.delete_one({'_id': self.pk})
+        self._cls.collection.delete_one({'_id': self.pk})
 
     def save(self):
         if self.pk is None:
-            self.__class__.collection.insert_one(self.to_dict())
+            result = self._cls.collection.insert_one(self.to_dict())
+            self._id = result.inserted_id
         else:
-            self.__class__.collection.update_one(
+            self._cls.collection.update_one(
                 {'_id': self.pk}, 
                 {'$set': self.to_dict()}
             )
@@ -137,32 +142,38 @@ class MongoModel(Model):
 class RedisModel(Model):
 
     connection = None
-    hash_name = None
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._key = uuid.uuid4()
+    hash_name = HashNameDescriptor()
 
     @property
     def pk(self):
-        return self._key
-
-    @property
-    def _hash_name(self):
-        return self.__class__.hash_name or self.__class__.__name__.lower()
+        try:
+            return self._key
+        except AttributeError:
+            return None
 
     def delete(self):
-        pk = str(self.pk)
-        self.__class__.connection.hdel(self._hash_name, pk)
+        return self._RedisModel__delete()
 
     def save(self):
+        return self._RedisModel__save()
+
+    def __delete(self):
         pk = str(self.pk)
-        self.__class__.connection.hset(self._hash_name, pk, self.to_pickle())
+        self._cls.connection.hdel(self._cls.hash_name, pk)
+
+    def __save(self):
+        if self.pk is None:
+            self._key = uuid.uuid4()
+        pk = str(self.pk)
+        self._cls.connection.hset(self._cls.hash_name, pk, self.to_pickle())
 
     @classmethod
     def get_by_id(cls, id):
-        hash_name = cls.hash_name or cls.__name__.lower()
-        p = cls.connection.hget(hash_name, id)
+        return cls._RedisModel__get_by_id(id)
+
+    @classmethod
+    def __get_by_id(cls, id):
+        p = cls.connection.hget(cls.hash_name, id)
         if p is not None:
             return cls.from_pickle(p)
         return None
@@ -172,15 +183,15 @@ class HybridModel(MongoModel, RedisModel):
     
     def delete(self):
         super().delete()
-        RedisModel.delete(self)
+        super()._RedisModel__delete(self)
 
     def save(self):
         super().save()
-        RedisModel.save(self)
+        super()._RedisModel__save(self)
 
     @classmethod 
     def get_by_id(cls, id):
-        instance = RedisModel.get_by_id(id)
+        instance = cls._RedisModel__get_by_id(id)
         if instance is None:
             instance = super().get_by_id(id)
         return instance
