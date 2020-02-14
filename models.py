@@ -99,6 +99,7 @@ class MongoModel(Model):
     json_decoder = MongoJSONDecoder
 
     database = None
+    collection_name = None
     collection = CollectionDescriptor()
 
     @property
