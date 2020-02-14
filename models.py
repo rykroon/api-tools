@@ -143,6 +143,7 @@ class MongoModel(Model):
 class RedisModel(Model):
 
     connection = None
+    expire = None
     hash_name = HashNameDescriptor()
 
     @property
