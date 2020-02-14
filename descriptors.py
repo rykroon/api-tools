@@ -3,10 +3,11 @@ class CollectionDescriptor:
     def __get__(self, instance, owner):
         if instance is not None:
             raise AttributeError("Collection isn't accessible via {} instances".format(owner.__name__))
-        return owner.database[owner.__name__.lower()]
+        collection_name = owner.collection_name or owner.__name__.lower()
+        return owner.database[collection_name]
 
     def __set__(self, instance, value):
-        pass
+        raise AttributeError("can't set attribute")
 
 
 class HashNameDescriptor:

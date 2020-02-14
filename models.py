@@ -19,7 +19,7 @@ class SerializableObject:
         return self.__class__
 
     def to_dict(self):
-        return vars(self)
+        return dict(vars(self))
 
     def to_json(self, **kwargs):
         encoder = kwargs.pop('cls', self.__class__.json_encoder)
@@ -152,10 +152,10 @@ class RedisModel(Model):
             return None
 
     def delete(self):
-        return self._RedisModel__delete()
+        self._RedisModel__delete()
 
     def save(self):
-        return self._RedisModel__save()
+        self._RedisModel__save()
 
     def __delete(self):
         pk = str(self.pk)
@@ -183,11 +183,11 @@ class HybridModel(MongoModel, RedisModel):
     
     def delete(self):
         super().delete()
-        super()._RedisModel__delete(self)
+        super()._RedisModel__delete()
 
     def save(self):
         super().save()
-        super()._RedisModel__save(self)
+        super()._RedisModel__save()
 
     @classmethod 
     def get_by_id(cls, id):
