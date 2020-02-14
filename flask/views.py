@@ -9,6 +9,10 @@ from aux import jsonify_model
 
 class ResourceView(MethodView):
 
+    @property
+    def _cls(self):
+        return self.__class__
+
     def get_resource_by_id(self, id):
         """
             @returns: The resource associated with the id, else None
@@ -35,58 +39,54 @@ class DocumentView(ResourceView):
         except InvalidId as e:
             return None 
 
-        return self.__class__.collection.find_one({'_id': object_id})
+        return self._cls.collection.find_one({'_id': object_id})
         
     def get(self, document=None):
         if document:
             return jsonify(document)
         else:
-            documents = list(self.__class__.collection.find(request.args))
+            documents = list(self._cls.collection.find(request.args))
             return jsonify(documents)
 
     def post(self):
         data = request.get_json()
-        self.__class__.collection.insert_one(data)
+        self._cls.collection.insert_one(data)
         return jsonify(data), status=201
 
     def put(self, document):
         data = request.get_json()
         document.update(data)
-        self.__class__.update_one(
+        self._cls.update_one(
             {'_id': document.get('_id')},
             {'$set': document}
         )
         return jsonify(document)
 
     def delete(self, document):
-        self.__class__.collection.delete_one({'_id': document.get('_id')})
+        self._cls.collection.delete_one({'_id': document.get('_id')})
         return jsonify(document)
 
 
 class ModelView(ResourceView):
     model = None
 
-    @property
-    def _model(self):
-        return self.__class__.model
-
     def get_resource_by_id(self, id):
-        return self._model.objects.get_by_id(id) 
+        return self._cls.model.objects.get_by_id(id) 
 
     def get(self, instance=None):
         if instance:
             return jsonify_model(instance)
         else:
-            results = self._model.get_many(request.args)
+            results = self._cls.model.get_many(request.args)
             return jsonify(results)
 
     def post(self):
-        instance = self._model.from_json(request.data)
+        instance = self._cls.model.from_json(request.data)
         instance.save()
         return jsonify_model(instance), status=201
 
     def put(self, instance):
-        data = json.loads(request.data, cls=self._model.json_decoder)
+        data = json.loads(request.data, cls=self._cls.model.json_decoder)
         instance.update(data)
         instance.save()
         return jsonify_model(instance)
