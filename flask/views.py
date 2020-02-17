@@ -87,7 +87,9 @@ class ModelView(ResourceView):
 
     def put(self, instance):
         data = json.loads(request.data, cls=self._cls.model.json_decoder)
-        instance.update(data)
+        for k, v in data.items():
+            setattr(instance, k, v)
+            
         instance.save()
         return jsonify_model(instance)
 

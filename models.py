@@ -81,9 +81,6 @@ class Model(SerializableObject):
     def save(self):
         raise NotImplementedError
 
-    def update(self, data):
-        self.__dict__.update(data)
-
     @classmethod
     def get_by_id(cls, id):
         raise NotImplementedError
