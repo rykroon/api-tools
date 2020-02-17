@@ -10,14 +10,14 @@ class CollectionDescriptor:
         raise AttributeError("can't set attribute")
 
 
-class HashNameDescriptor:
+class KeyPrefixDescriptor:
     def __init__(self):
-        self.name = None
+        self.prefix = None
 
     def __get__(self, instance, owner):
-        if self.name is None:
+        if self.prefix is None:
             return owner.__name__.lower()
-        return self.name
+        return self.prefix
 
     def __set__(self, instance, value):
-        self.name = value
+        self.prefix = value

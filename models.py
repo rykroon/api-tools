@@ -141,7 +141,7 @@ class RedisModel(Model):
 
     connection = None
     expire = None
-    hash_name = HashNameDescriptor()
+    key_prefix = KeyPrefixDescriptor()
 
     @property
     def pk(self):
@@ -157,14 +157,15 @@ class RedisModel(Model):
         self._RedisModel__save()
 
     def __delete(self):
-        pk = str(self.pk)
-        self._cls.connection.hdel(self._cls.hash_name, pk)
+        key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
+        self._cls.connection.delete(pk)
 
     def __save(self):
         if self.pk is None:
             self._key = uuid.uuid4()
-        pk = str(self.pk)
-        self._cls.connection.hset(self._cls.hash_name, pk, self.to_pickle())
+
+        key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
+        self._cls.connection.set(key, self.to_pickle())
 
     @classmethod
     def get_by_id(cls, id):
@@ -172,7 +173,8 @@ class RedisModel(Model):
 
     @classmethod
     def __get_by_id(cls, id):
-        p = cls.connection.hget(cls.hash_name, id)
+        key = "{}:{}".format(self._cls.key_prefix, str(id))
+        p = cls.connection.get(key)
         if p is not None:
             return cls.from_pickle(p)
         return None
