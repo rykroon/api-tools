@@ -160,12 +160,13 @@ class RedisModel(Model):
         key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
         self._cls.connection.delete(pk)
 
-    def __save(self):
+    def __save(self, expire=None):
         if self.pk is None:
             self._key = uuid.uuid4()
 
         key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
-        self._cls.connection.set(key, self.to_pickle())
+        expire = expire or self._cls.expire
+        self._cls.connection.set(key, self.to_pickle(), ex=expire)
 
     @classmethod
     def get_by_id(cls, id):
@@ -186,9 +187,9 @@ class HybridModel(MongoModel, RedisModel):
         super().delete()
         super()._RedisModel__delete()
 
-    def save(self):
+    def save(self, expire=None):
         super().save()
-        super()._RedisModel__save()
+        super()._RedisModel__save(expire=expire)
 
     @classmethod 
     def get_by_id(cls, id):
