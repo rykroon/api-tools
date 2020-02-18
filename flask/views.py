@@ -9,6 +9,14 @@ from aux import jsonify_model
 
 class ResourceView(MethodView):
 
+    fields_kw = 'fields'
+    limit_kw = 'limit'
+    default_limit = 10
+    max_limit = 50
+    offset_kw = 'offset'
+    sort_kw = 'sort'
+    key_operator_delimiter = ':'
+
     @property
     def _cls(self):
         return self.__class__
@@ -19,7 +27,36 @@ class ResourceView(MethodView):
         """
         raise NotImplementedError
 
+    def parse_query_args(self):
+        pass
+
     def dispatch_request(self, *args, **kwargs):
+        if request.args:
+            qargs = request.args.to_dict()
+            
+            fields = qargs.pop(self._cls.fields_kw, None)
+            if fields is not None:
+                fields = fields.split(',')
+
+            limit = qargs.pop(self._cls.limit_kw, self._cls.default_limit)
+            limit = min(limit, self._cls.max_limit)
+
+            offset = qargs.pop(self._cls.offset_kw, 0)
+
+            sort = qargs.pop(self._cls.sort_kw, None)
+            if sort is not None:
+                sort = sort.split(',')
+
+            new qargs = {}
+
+            for key, val in qargs.items():
+                if self._cls.key_operator_delimiter in key:
+                    key = tuple(key.split(self._cls.key_operator_delimiter))
+
+                new_qargs[key] = val 
+                
+        
+        #
         id = kwargs.pop('id', None)
         if id is not None:
             resource = self.get_resource_by_id(id)
@@ -89,7 +126,7 @@ class ModelView(ResourceView):
         data = json.loads(request.data, cls=self._cls.model.json_decoder)
         for k, v in data.items():
             setattr(instance, k, v)
-            
+
         instance.save()
         return jsonify_model(instance)
 
