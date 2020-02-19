@@ -52,10 +52,10 @@ class ResourceView(MethodView):
             qargs[key] = val
 
         return {
-            fields_kw: fields,
-            sort_kw: sort,
-            limit_kw: limit,
-            offset_kw: offset,
+            self._cls.fields_kw: fields,
+            self._cls.sort_kw: sort,
+            self._cls.limit_kw: limit,
+            self._cls.offset_kw: offset,
             'query_args': qargs
         }
         
@@ -76,7 +76,7 @@ class DocumentView(ResourceView):
         try:
             object_id = ObjectId(id)
             
-        except InvalidId as e:
+        except InvalidId:
             return None 
 
         return self._cls.collection.find_one({'_id': object_id})
@@ -91,12 +91,12 @@ class DocumentView(ResourceView):
     def post(self):
         data = request.get_json()
         self._cls.collection.insert_one(data)
-        return jsonify(data), status=201
+        return jsonify(data), 201
 
     def put(self, document):
         data = request.get_json()
         document.update(data)
-        self._cls.update_one(
+        self._cls.collection.update_one(
             {'_id': document.get('_id')},
             {'$set': document}
         )
@@ -123,7 +123,7 @@ class ModelView(ResourceView):
     def post(self):
         instance = self._cls.model.from_json(request.data)
         instance.save()
-        return jsonify_model(instance), status=201
+        return jsonify_model(instance), 201
 
     def put(self, instance):
         data = json.loads(request.data, cls=self._cls.model.json_decoder)

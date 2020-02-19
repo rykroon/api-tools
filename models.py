@@ -1,8 +1,10 @@
+from bson.errors import InvalidId
+from bson.objectid import ObjectId
 import json
 import pickle
 import uuid
 
-from descriptors import CollectionDescriptor, HashNameDescriptor
+from descriptors import CollectionDescriptor, KeyPrefixDescriptor
 from json_util import JSONEncoder, JSONDecoder, MongoJSONEncoder, MongoJSONDecoder
 
 
@@ -158,7 +160,7 @@ class RedisModel(Model):
 
     def __delete(self):
         key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
-        self._cls.connection.delete(pk)
+        self._cls.connection.delete(key)
 
     def __save(self, expire=None):
         if self.pk is None:
@@ -174,7 +176,7 @@ class RedisModel(Model):
 
     @classmethod
     def __get_by_id(cls, id):
-        key = "{}:{}".format(self._cls.key_prefix, str(id))
+        key = "{}:{}".format(cls.key_prefix, str(id))
         p = cls.connection.get(key)
         if p is not None:
             return cls.from_pickle(p)
