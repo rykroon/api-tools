@@ -142,13 +142,13 @@ class MongoModel(Model):
 class RedisModel(Model):
 
     connection = None
-    expire = None
+    expiration = None
     key_prefix = KeyPrefixDescriptor()
 
     @property
     def pk(self):
         try:
-            return self._key
+            return self._id
         except AttributeError:
             return None
 
@@ -162,13 +162,17 @@ class RedisModel(Model):
         key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
         self._cls.connection.delete(key)
 
-    def __save(self, expire=None):
+    def __save(self, ex=None):
         if self.pk is None:
-            self._key = uuid.uuid4()
+            self._id = uuid.uuid4()
 
         key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
-        expire = expire or self._cls.expire
-        self._cls.connection.set(key, self.to_pickle(), ex=expire)
+        
+        ttl = self._cls.connection.ttl(key)
+        ttl = 0 if ttl < 0 else ttl
+        ex = ttl or ex or self._cls.expiration
+
+        self._cls.connection.set(key, self.to_pickle(), ex=ex)
 
     @classmethod
     def get_by_id(cls, id):
