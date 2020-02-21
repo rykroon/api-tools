@@ -9,8 +9,8 @@ class User(MongoModel):
         self.salt = bcrypt.gensalt()
         self.hash_password = bcrypt.hashpw(password.encode(), self.salt)
         self.access_token_id = None 
-        self._access_token = None
         self.refresh_token_id = None
+        self._access_token = None
         self._refresh_token = None
 
     @property
@@ -19,7 +19,21 @@ class User(MongoModel):
 
     @property
     def access_token(self):
-        pass
+        if self._access_token is None:
+            if self._access_token_id:
+                self._access_token = AccessToken.get_by_id(self.access_token_id)
+        return self._access_token
+
+    @access_token.setter
+    def access_token(self, token):
+        if not isinstance(token, AccessToken):
+            raise TypeError
+
+        if token.pk is None:
+            raise Exception('Token has not been saved')
+
+        self.access_token_id = token.pk
+        self._access_token = token
 
     @property 
     def refresh_token(self):
@@ -35,8 +49,17 @@ class User(MongoModel):
         if self.refresh_token == refresh_token:
             access_token = AccessToken()
             access_token.save()
-            self.access_token_id = access_token.pk
+            self.access_token = access_token
+            return self.access_token
+        return None
 
+    def generate_refresh_token(self, password):
+        if self.check_password(password):
+            refresh_token = RefreshToken()
+            refresh_token.save()
+            self.refresh_token = refresh_token
+            return refresh_token
+        return None
 
 
 class Token(RedisModel):
@@ -45,15 +68,19 @@ class Token(RedisModel):
     def __init__(self, lifetime=None):
         self.token = secrets.token_urlsafe()
         self.lifetime = lifetime or self.__class__.lifetime
-        self.expire_date = dt.now() + self.lifetime
+        self.date_created = dt.now()
+        self.date_expires = self.date_created + self.lifetime
 
     def __eq__(self, other):
         if not isinstance(other, Token):
             return NotImplemented
         return self.token == other.token 
 
+    def save(self):
+        super().save(expire=self.lifetime.total_seconds())
+
     def is_expired(self):
-        return dt.now() > self.expire_date 
+        return dt.now() > self.date_expires 
 
 
 class AccessToken(Token):
@@ -62,3 +89,5 @@ class AccessToken(Token):
 
 class RefreshToken(Token):
     lifetime = timedelta(days=8)
+
+
