@@ -172,7 +172,7 @@ class RedisModel(Model):
         ttl = self._cls.connection.ttl(self._key)
         ttl = 0 if ttl < 0 else ttl
         ex = ttl or ex or self._cls.expiration
-        self._cls.connection.set(self._key, self.bytes(), ex=ex)
+        self._cls.connection.set(self._key, self.to_bytes(), ex=ex)
 
     @classmethod
     def get_by_id(cls, id):
