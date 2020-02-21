@@ -20,8 +20,11 @@ class SerializableObject:
     def _cls(self):
         return self.__class__
 
-    def to_dict(self):
-        return dict(vars(self))
+    def to_dict(self, include_private=False):
+        d = dict(vars(self))
+        if not include_private:
+            d = {k:v for k,v in d if not k.startswith('_')}
+        return d
 
     def to_json(self, **kwargs):
         encoder = kwargs.pop('cls', self.__class__.json_encoder)
@@ -152,6 +155,10 @@ class RedisModel(Model):
         except AttributeError:
             return None
 
+    @property
+    def _key(self):
+        return "{}:{}".format(self._cls.key_prefix, str(self.pk))
+
     def delete(self):
         self._RedisModel__delete()
 
@@ -159,20 +166,17 @@ class RedisModel(Model):
         self._RedisModel__save()
 
     def __delete(self):
-        key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
-        self._cls.connection.delete(key)
+        self._cls.connection.delete(self._key)
 
     def __save(self, ex=None):
         if self.pk is None:
             self._id = uuid.uuid4()
-
-        key = "{}:{}".format(self._cls.key_prefix, str(self.pk))
         
-        ttl = self._cls.connection.ttl(key)
+        ttl = self._cls.connection.ttl(self._key)
         ttl = 0 if ttl < 0 else ttl
         ex = ttl or ex or self._cls.expiration
 
-        self._cls.connection.set(key, self.to_pickle(), ex=ex)
+        self._cls.connection.set(self._key, self.to_pickle(), ex=ex)
 
     @classmethod
     def get_by_id(cls, id):
