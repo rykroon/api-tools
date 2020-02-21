@@ -27,7 +27,7 @@ class SerializableObject:
         encoder = kwargs.pop('cls', self.__class__.json_encoder)
         return json.dumps(self.to_dict(), cls=encoder, **kwargs)
 
-    def to_pickle(self):
+    def to_bytes(self):
         return pickle.dumps(self)
 
     @classmethod
@@ -41,8 +41,8 @@ class SerializableObject:
         return cls.from_dict(d)
 
     @classmethod
-    def from_pickle(cls, p):
-        instance = pickle.loads(p)
+    def from_bytes(cls, b):
+        instance = pickle.loads(b)
         if type(instance) != cls:
             raise TypeError
         return instance
@@ -172,7 +172,7 @@ class RedisModel(Model):
         ttl = self._cls.connection.ttl(self._key)
         ttl = 0 if ttl < 0 else ttl
         ex = ttl or ex or self._cls.expiration
-        self._cls.connection.set(self._key, self.to_pickle(), ex=ex)
+        self._cls.connection.set(self._key, self.bytes(), ex=ex)
 
     @classmethod
     def get_by_id(cls, id):
@@ -183,7 +183,7 @@ class RedisModel(Model):
         key = "{}:{}".format(cls.key_prefix, str(id))
         p = cls.connection.get(key)
         if p is not None:
-            return cls.from_pickle(p)
+            return cls.from_bytes(p)
         return None
 
 
